@@ -1,4 +1,5 @@
 {
     "port": 9002,
-    "webhooks": ["http://localhost:9001/raw"]
+    "webhooks": ["http://localhost:9001/raw"],
+    "controler": "http://localhost:9001/controler"
 }

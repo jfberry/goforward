@@ -16,7 +16,7 @@ func main() {
 
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/raw", Raw)
-	router.HandleFunc("/comtroler", Comtroler)
+	router.HandleFunc("/controler", Controler)
 	addr := fmt.Sprintf(":%d", config.Config.Port)
 	log.Fatal(http.ListenAndServe(addr, router)) // addr is in form :9001
 }
@@ -45,7 +45,7 @@ func Raw(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func Comtroler(w http.ResponseWriter, r *http.Request) {
+func Controler(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(io.LimitReader(r.Body, 1048576))
 	if err != nil {
 		panic(err)
@@ -55,18 +55,37 @@ func Comtroler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for _, url := range config.Config.Webhooks {
-		go forwardWebhook(url, body, r.Header)
+	req, err2 := http.NewRequest("POST", config.Config.Controler, bytes.NewBuffer(body))
+
+	if err2 != nil {
+		log.Warnf("Sender: unable to connect to %s - %s", config.Config.Controler, err2)
+		return
 	}
 
-	//if decodeError == true {
-	//	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	//	w.WriteHeader(http.StatusUnprocessableEntity)
-	//	return
-	//}
+	req.Header.Set("X-Goforward", "Forwarded!")
+	for k, v := range r.Header {
+		for _, x := range v {
+			req.Header.Add(k, x)
+		}
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Warningf("Controler: %s", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	log.Debugf("Controler: Response %s", resp.Status)
+
+	responseBody, _ := ioutil.ReadAll(resp.Body)
+
+	//fmt.Println("response Body:", string(responseBody))
 
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(resp.StatusCode)
+	w.Write(responseBody)
 }
 
 func forwardWebhook(url string, body []byte, field http.Header) {
